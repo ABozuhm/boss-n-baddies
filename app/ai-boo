@@ -1,1 +1,47 @@
 
+"use client";
+
+import { useState } from "react";
+import VeloraAvatar from "@/components/VeloraAvatar";
+
+export default function AIBoo() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+
+  const sendMessage = async () => {
+    const res = await fetch("/api/velora", {
+      method: "POST",
+      body: JSON.stringify({ message: input })
+    });
+
+    const data = await res.json();
+
+    setMessages([...messages, { role: "user", content: input }, data]);
+    setInput("");
+  };
+
+  return (
+    <div className="h-screen bg-black text-white p-5">
+      <h1 className="text-3xl mb-4">AI BOO 💋</h1>
+
+      <div className="h-[70vh] overflow-y-auto border p-4">
+        {messages.map((m, i) => (
+          <p key={i}>{m.content}</p>
+        ))}
+      </div>
+
+      <div className="flex mt-4">
+        <input
+          className="flex-1 p-2 text-black"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+        <button onClick={sendMessage} className="bg-pink-500 px-4">
+          Send
+        </button>
+      </div>
+
+      <VeloraAvatar />
+    </div>
+  );
+}
