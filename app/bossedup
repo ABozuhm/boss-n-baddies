@@ -1,1 +1,30 @@
 
+"use client";
+
+import SwipeDeck from "@/components/SwipeDeck";
+import GiftBar from "@/components/GiftBar";
+import Sidebar from "@/components/Sidebar";
+import { useVoteStore } from "@/store/voteStore";
+
+const users = [
+  { id: 1, name: "Keisha", image: "/choice2-keisha.png", rank: 1, votes: 2000 },
+  { id: 2, name: "Tasha", image: "/choice3-tasha.png", rank: 2, votes: 1500 }
+];
+
+export default function Baddest() {
+  const vote = useVoteStore((s) => s.vote);
+
+  return (
+    <div className="flex h-screen bg-black text-white">
+      <Sidebar />
+
+      <div className="flex flex-col flex-1 items-center justify-center">
+        <h1 className="text-3xl mb-4">THE BADDEST 🔥</h1>
+        <SwipeDeck users={users} />
+        <GiftBar onVote={(amount) => vote(users[0].id, amount)} />
+      </div>
+
+      <Sidebar />
+    </div>
+  );
+}
