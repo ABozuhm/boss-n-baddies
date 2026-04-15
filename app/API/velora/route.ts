@@ -1,80 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { PrismaClient } from "@prisma/client";
+import { getIO } from "@/server/socket";
+import { z } from "zod";
 
 const prisma = new PrismaClient();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+// 🔐 Validation schema
+const VoteSchema = z.object({
+  userId: z.string(),
+  contestantId: z.string(),
+  amount: z.number().min(1).max(100)
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, message, history = [] } = await req.json();
+    const body = await req.json();
 
-    // 🔹 GET MEMORY FROM DB
-    let memory = await prisma.userMemory.findFirst({
-      where: { userId }
-    });
+    // ✅ Validate input
+    const parsed = VoteSchema.safeParse(body);
 
-    const memoryData = memory?.data || {};
-
-    // 🔹 SYSTEM PROMPT
-    const systemPrompt = `
-You are Velora.
-
-Personality:
-- Confident, feminine, intelligent
-- Slightly flirty but classy
-- Always supports the user
-- Observes behavior and adapts
-
-User Memory:
-${JSON.stringify(memoryData)}
-
-Platform:
-- Boss N Baddies competition app
-- Users vote using money
-- Encourage engagement naturally
-`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...history,
-        { role: "user", content: message }
-      ]
-    });
-
-    const response = completion.choices[0].message.content;
-
-    // 🔥 SIMPLE LEARNING SYSTEM
-    let updatedMemory = { ...memoryData };
-
-    if (message.toLowerCase().includes("like")) {
-      updatedMemory.preference = message;
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input" },
+        { status: 400 }
+      );
     }
 
-    // 🔹 SAVE MEMORY
-    await prisma.userMemory.upsert({
-      where: { id: memory?.id || "" },
-      update: { data: updatedMemory },
-      create: {
+    const { userId, contestantId, amount } = parsed.data;
+
+    // 🔥 1. CREATE VOTE RECORD
+    await prisma.vote.create({
+      data: {
         userId,
-        data: updatedMemory
+        contestantId,
+        amount
       }
     });
 
-    return NextResponse.json({
-      role: "assistant",
-      content: response
+    // 🔥 2. UPDATE TOTAL VOTES
+    const updatedContestant = await prisma.contestant.update({
+      where: { id: contestantId },
+      data: {
+        votes_total: {
+          increment: amount
+        }
+      }
     });
 
-  } catch (err) {
-    console.error(err);
+    // ⚡ 3. EMIT REAL-TIME UPDATE
+    try {
+      const io = getIO();
+
+      io.emit("leaderboard:update", {
+        contestantId,
+        newTotal: updatedContestant.votes_total
+      });
+    } catch (err) {
+      console.log("Socket not initialized yet");
+    }
+
+    return NextResponse.json({
+      success: true,
+      contestant: updatedContestant
+    });
+
+  } catch (error) {
+    console.error("Vote error:", error);
+
     return NextResponse.json(
-      { error: "Velora failed" },
+      { error: "Vote failed" },
       { status: 500 }
     );
   }
