@@ -1,20 +1,31 @@
+
 import { Server } from "socket.io";
+import { Server as HTTPServer } from "http";
 
-let io: Server;
+let io: Server | null = null;
 
-export function initSocket(server: any) {
+// 🔥 Initialize socket
+export function initSocket(server: HTTPServer) {
   io = new Server(server, {
     cors: {
-      origin: "*"
+      origin: "*",
+      methods: ["GET", "POST"]
     }
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+    console.log("🔥 User connected:", socket.id);
+
+    socket.on("disconnect", () => {
+      console.log("❌ User disconnected:", socket.id);
+    });
   });
 }
 
+// 🔥 Get socket instance anywhere in app
 export function getIO() {
-  if (!io) throw new Error("Socket not initialized");
+  if (!io) {
+    throw new Error("Socket.io not initialized");
+  }
   return io;
 }
